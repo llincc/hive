@@ -456,7 +456,7 @@ public class ASTConverter {
       /*
        * once the source node is reached; stop traversal for this QB
        */
-      if (ASTConverter.this.from == null) {
+      if (ASTConverter.this.from == null) { // 追踪到from句式，结束
         node.childrenAccept(this);
       }
     }

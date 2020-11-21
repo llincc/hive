@@ -81,9 +81,9 @@ public class ReduceSinkDeDuplication extends Transform {
     // If multiple rules can be matched with same cost, last rule will be choosen as a processor
     // see DefaultRuleDispatcher#dispatch()
     Map<Rule, NodeProcessor> opRules = new LinkedHashMap<Rule, NodeProcessor>();
-    opRules.put(new RuleRegExp("R1", RS + "%.*%" + RS + "%"),
+    opRules.put(new RuleRegExp("R1", RS + "%.*%" + RS + "%"), // 只处理RS% SEL%* RS%的情况
         ReduceSinkDeduplicateProcFactory.getReducerReducerProc());
-    opRules.put(new RuleRegExp("R2", RS + "%" + GBY + "%.*%" + RS + "%"),
+    opRules.put(new RuleRegExp("R2", RS + "%" + GBY + "%.*%" + RS + "%"), // group by + order by 会产生这种句式
         ReduceSinkDeduplicateProcFactory.getGroupbyReducerProc());
     if (mergeJoins) {
       opRules.put(new RuleRegExp("R3", JOIN + "%.*%" + RS + "%"),

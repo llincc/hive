@@ -99,7 +99,7 @@ public class TopNHash {
     assert !this.isEnabled;
     this.isEnabled = false;
     this.topN = topN;
-    this.collector = collector;
+    this.collector = collector; // ReduceSinkOperator
     if (topN == 0) {
       isEnabled = true;
       return; // topN == 0 will cause a short-circuit, don't need any initialization
@@ -341,7 +341,7 @@ public class TopNHash {
    */
   private int insertKeyIntoHeap(HiveKey key) throws IOException, HiveException {
     if (usage > threshold) {
-      flushInternal();
+      flushInternal(); // collect collect
       if (excluded == 0) {
         LOG.info("Top-N hash is disabled");
         isEnabled = false;
@@ -350,8 +350,8 @@ public class TopNHash {
       // but for simplicity, just forward them
       return FORWARD;
     }
-    int size = indexes.size();
-    int index = size < topN ? size : evicted;
+    int size = indexes.size(); // indexes  treemap for HashForGroup (mapGroupBy)
+    int index = size < topN ? size : evicted; // evicted = topN
     keys[index] = Arrays.copyOf(key.getBytes(), key.getLength());
     distKeyLengths[index] = key.getDistKeyLength();
     hashes[index] = key.hashCode();
@@ -412,7 +412,7 @@ public class TopNHash {
    * MinMaxPriorityQueue is used because it alows duplication and fast access to biggest one
    */
   private class HashForRow implements IndexStore {
-    private final MinMaxPriorityQueue<Integer> indexes = MinMaxPriorityQueue.orderedBy(C).create();
+    private final MinMaxPriorityQueue<Integer> indexes = MinMaxPriorityQueue.orderedBy(C).create(); // 用的distribute keys
 
     public int size() {
       return indexes.size();

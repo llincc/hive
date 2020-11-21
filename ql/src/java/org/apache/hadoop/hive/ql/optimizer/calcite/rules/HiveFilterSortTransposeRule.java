@@ -26,7 +26,7 @@ import org.apache.hadoop.hive.ql.optimizer.calcite.reloperators.HiveSortLimit;
 
 import com.google.common.collect.ImmutableList;
 
-public class HiveFilterSortTransposeRule extends RelOptRule {
+public class HiveFilterSortTransposeRule extends RelOptRule { // Filter 下推
 
   public static final HiveFilterSortTransposeRule INSTANCE =
       new HiveFilterSortTransposeRule();
@@ -48,7 +48,7 @@ public class HiveFilterSortTransposeRule extends RelOptRule {
   public boolean matches(RelOptRuleCall call) {
     final HiveSortLimit sort = call.rel(1);
 
-    // If sort contains a limit operation, we bail out
+    // If sort contains a limit operation, we bail out // 如果限制了limit（eg. fetch 20），则说明filter不能下推了
     if (HiveCalciteUtil.limitRelNode(sort)) {
       return false;
     }

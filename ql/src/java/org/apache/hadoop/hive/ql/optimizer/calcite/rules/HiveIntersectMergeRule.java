@@ -64,14 +64,14 @@ public class HiveIntersectMergeRule extends RelOptRule {
       return;
     }
 
-    boolean all = topHiveIntersect.all;
+    boolean all = topHiveIntersect.all;// 如果顶部是intersect all，则底部必须也为all
     // top is distinct, we can always merge whether bottom is distinct or not
     // top is all, we can only merge if bottom is also all
     // that is to say, we should bail out if top is all and bottom is distinct
     if (all && !bottomHiveIntersect.all) {
       return;
     }
-
+    // 逻辑与union merge类似
     List<RelNode> inputs = new ArrayList<>();
     if (call.rel(2) instanceof HiveIntersect) {
       inputs.add(topHiveIntersect.getInput(0));

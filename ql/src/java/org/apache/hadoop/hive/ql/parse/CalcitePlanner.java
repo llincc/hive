@@ -1888,7 +1888,7 @@ public class CalcitePlanner extends SemanticAnalyzer {
       if (LOG.isDebugEnabled() && !conf.getBoolVar(ConfVars.HIVE_IN_TEST)) {
         LOG.debug("CBO Planning details:\n");
         LOG.debug("Original Plan:\n" + RelOptUtil.toString(calciteGenPlan));
-        LOG.debug("Plan After PPD, PartPruning, ColumnPruning:\n"
+        LOG.d ebug("Plan After PPD, PartPruning, ColumnPruning:\n"
             + RelOptUtil.toString(calcitePreCboPlan));
         LOG.debug("Plan After Join Reordering:\n"
             + RelOptUtil.toString(calciteOptimizedPlan, SqlExplainLevel.ALL_ATTRIBUTES));
@@ -1962,8 +1962,8 @@ public class CalcitePlanner extends SemanticAnalyzer {
       perfLogger.PerfLogEnd(this.getClass().getName(), PerfLogger.OPTIMIZER,
         "Calcite: Prejoin ordering transformation, factor out common filter elements and separating deterministic vs non-deterministic UDF");
 
-      // 3. Run exhaustive PPD, add not null filters, transitive inference,
-      // constant propagation, constant folding
+      // 3. Run exhaustive PPD, add not null filters, transitive inference, //
+      // constant propagation, constant folding // 常量传播和常量折叠
       List<RelOptRule> rules = Lists.newArrayList();
       if (conf.getBoolVar(HiveConf.ConfVars.HIVEOPTPPD_WINDOWING)) {
         rules.add(HiveFilterProjectTransposeRule.INSTANCE_DETERMINISTIC_WINDOWING);
@@ -1972,7 +1972,7 @@ public class CalcitePlanner extends SemanticAnalyzer {
       }
       rules.add(HiveFilterSetOpTransposeRule.INSTANCE);
       rules.add(HiveFilterSortTransposeRule.INSTANCE);
-      rules.add(HiveFilterJoinRule.JOIN);
+      rules.add(HiveFilterJoinRule.JOIN); // Filter下推
       rules.add(HiveFilterJoinRule.FILTER_ON_JOIN);
       rules.add(new HiveFilterAggregateTransposeRule(Filter.class, HiveRelFactories.HIVE_BUILDER,
           Aggregate.class));

@@ -5610,7 +5610,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
         TypeInfo type = reduceSinkInputRowResolver.getColumnInfos().get(
             inputField).getType();
         ExprNodeColumnDesc exprDesc = new ExprNodeColumnDesc(type,
-            getColumnInternalName(inputField), "", false);
+            getColumnInternalName(inputField), "", false); // 输入列名
         reduceValues.add(exprDesc);
         inputField++;
         String outputColName = getColumnInternalName(reduceValues.size() - 1);
@@ -8955,7 +8955,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
     int pos = 0;
     for (String src : baseSrc) {
       if (src != null) {
-        Operator srcOp = map.get(src.toLowerCase());
+         Operator srcOp = map.get(src.toLowerCase());
 
         // for left-semi join, generate an additional selection & group-by
         // operator before ReduceSink
@@ -9604,7 +9604,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
       joinTree.getAliasToOpInfo().put(
           getModifiedAlias(qb, alias), aliasToOpInfo.get(alias));
       // remember rhs table for semijoin
-      if (joinTree.getNoSemiJoin() == false) {
+       if (joinTree.getNoSemiJoin() == false) {
         joinTree.addRHSSemijoin(alias);
       }
     } else {
@@ -10217,7 +10217,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
       columnNames.add(col.getInternalName());
       columnExprMap.put(col.getInternalName(), new ExprNodeColumnDesc(col, true));
     }
-    RowResolver outputRR = inputRR.duplicate();
+    RowResolver outputRR = inputRR.duplicate(); // input 下方建一个select child
     Operator output = putOpInsertMap(OperatorFactory.getAndMakeChild(
         new SelectDesc(colList, columnNames, true),
         outputRR.getRowSchema(), input), outputRR);
@@ -11190,7 +11190,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
 
   static boolean isSkewedCol(String alias, QB qb, String colName) {
     boolean isSkewedCol = false;
-    List<String> skewedCols = qb.getSkewedColumnNames(alias);
+    List<String> skewedCols = qb.getSkewedColumnNames(alias); // getMetaData().getTableForAlias(alias).getSkewedColNames();
     for (String skewedCol : skewedCols) {
       if (skewedCol.equalsIgnoreCase(colName)) {
         isSkewedCol = true;

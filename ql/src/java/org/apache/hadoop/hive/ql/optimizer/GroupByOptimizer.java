@@ -85,7 +85,7 @@ public class GroupByOptimizer extends Transform {
 
     if (!HiveConf.getBoolVar(conf, HiveConf.ConfVars.HIVEGROUPBYSKEW)) {
       // process group-by pattern
-      opRules.put(new RuleRegExp("R1",
+      opRules.put(new RuleRegExp("R1", //GYB RS GYB
           GroupByOperator.getOperatorName() + "%" +
               ReduceSinkOperator.getOperatorName() + "%" +
               GroupByOperator.getOperatorName() + "%"),

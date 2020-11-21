@@ -160,15 +160,17 @@ public class HiveConf extends Configuration {
     URL result = classLoader.getResource(name);
     if (result == null) {
       String confPath = System.getenv("HIVE_CONF_DIR");
-      result = checkConfigFile(new File(confPath, name));
-      if (result == null) {
+      result = checkConfigFile(new File(confPath, name));// 从HIVE_CONF_DIR下找配置文件
+      if (result == null) {// 如果从HIVE_CONF_DIR下没找到配置文件
         String homePath = System.getenv("HIVE_HOME");
         String nameInConf = "conf" + File.separator + name;
-        result = checkConfigFile(new File(homePath, nameInConf));
+        result = checkConfigFile(new File(homePath, nameInConf));// 从HIVE_HOME/conf下找配置文件
         if (result == null) {
           URI jarUri = null;
           try {
             // Handle both file:// and jar:<url>!{entry} in the case of shaded hive libs
+            //如果直接执行.class文件那么会得到当前class的绝对路径。
+            //如果封装在jar包里面执行jar包那么会得到当前jar包的绝对路径。
             URL sourceUrl = HiveConf.class.getProtectionDomain().getCodeSource().getLocation();
             jarUri = sourceUrl.getProtocol().equalsIgnoreCase("jar") ? new URI(sourceUrl.getPath()) : sourceUrl.toURI();
           } catch (Throwable e) {
@@ -176,8 +178,12 @@ public class HiveConf extends Configuration {
             System.err.println("Cannot get jar URI: " + e.getMessage());
           }
           // From the jar file, the parent is /lib folder
+          // 若是所在的类已经打包，即不是裸体类，如:package org.apache；则file.getParentFile()获取的上层目录是从文件
+          // file到此包的顶层com所在的目录，因为会把org.apache.class看成一个整体的类。如果是裸体类，这获取的是从文件file到class所在的目录。
+          // 比如此时应该获取到路径为hive/common
           File parent = new File(jarUri).getParentFile();
           if (parent != null) {
+            // 继续定位到 hive/conf目录
             result = checkConfigFile(new File(parent.getParentFile(), nameInConf));
           }
         }

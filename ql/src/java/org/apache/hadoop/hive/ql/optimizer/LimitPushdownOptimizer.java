@@ -94,12 +94,12 @@ public class LimitPushdownOptimizer extends Transform {
   public ParseContext transform(ParseContext pctx) throws SemanticException {
     Map<Rule, NodeProcessor> opRules = new LinkedHashMap<Rule, NodeProcessor>();
     opRules.put(new RuleRegExp("R1",
-        ReduceSinkOperator.getOperatorName() + "%" +
+        ReduceSinkOperator.getOperatorName() + "%" + //RS%.*LMT%
         ".*" +
         LimitOperator.getOperatorName() + "%"),
         new TopNReducer());
     opRules.put(new RuleRegExp("R2",
-        ReduceSinkOperator.getOperatorName() + "%" +
+        ReduceSinkOperator.getOperatorName() + "%" + //RS%.*RS%
         ".*" +
         ReduceSinkOperator.getOperatorName() + "%"),
         new TopNPropagator());
@@ -142,7 +142,7 @@ public class LimitPushdownOptimizer extends Transform {
         Integer offset = limitDesc.getOffset();
         rs.getConf().setTopN(limitDesc.getLimit() + ((offset == null) ? 0 : offset));
         rs.getConf().setTopNMemoryUsage(((LimitPushdownContext) procCtx).threshold);
-        if (rs.getNumChild() == 1 && rs.getChildren().get(0) instanceof GroupByOperator) {
+        if (rs.getNumChild() == 1 && rs.getChildren().get(0) instanceof GroupByOperator) { // RS%GBY%LMT%
           rs.getConf().setMapGroupBy(true);
         }
       }
@@ -182,25 +182,25 @@ public class LimitPushdownOptimizer extends Transform {
         List<ExprNodeDesc> cKeys = cRS.getConf().getKeyCols();
         List<ExprNodeDesc> pKeys = pRS.getConf().getKeyCols();
         if (pRS.getChildren().get(0) instanceof GroupByOperator &&
-                pRS.getChildren().get(0).getChildren().get(0) == cRS) {
+                pRS.getChildren().get(0).getChildren().get(0) == cRS) { // 对于这种情况，可以是 childKeys.size() <= parentKeys.size() 或者 pKeys <= gKeys <= cKeys（childKeys.size() ！= parentKeys.size()）
           // RS-GB-RS
           GroupByOperator gBy = (GroupByOperator) pRS.getChildren().get(0);
           List<ExprNodeDesc> gKeys = gBy.getConf().getKeys();
-          if (!ExprNodeDescUtils.checkPrefixKeysUpstream(cKeys, pKeys, cRS, pRS)) {
+          if (!ExprNodeDescUtils.checkPrefixKeysUpstream(cKeys, pKeys, cRS, pRS)) { // childKeys.size() > parentKeys.size()
             // We might still be able to push the limit
-            if (!ExprNodeDescUtils.checkPrefixKeys(cKeys, gKeys, cRS, gBy) ||
-                    !ExprNodeDescUtils.checkPrefixKeys(gKeys, pKeys, gBy, pRS)) {
-              // We cannot push limit; bail out
+            if (!ExprNodeDescUtils.checkPrefixKeys(cKeys, gKeys, cRS, gBy) ||      // parentKeys.size() > groupKeys.size() || groupKeys.size() > childKeys.size() 根据上一个条件，则可知这两个判断不可能同时成立
+                    !ExprNodeDescUtils.checkPrefixKeys(gKeys, pKeys, gBy, pRS)) {  // 因此有两种情况，parentKeys.size() > groupKeys.size() 和 groupKeys.size() <= childKeys.size()  ===> childKeys.size() > parentKeys.size() >= groupKeys.size
+              // We cannot push limit; bail out  // 因此有两种情况，parentKeys.size() <= groupKeys.size() 和 childKeys.size() < groupKeys.size() ===> parentKeys.size() < childKeys.size() < groupKeys.size()
               return false;
-            }
+            }// 综上，只能是 pKeys <= gKeys <= cKeys
           }
         } else {
-          if (!ExprNodeDescUtils.checkPrefixKeysUpstream(cKeys, pKeys, cRS, pRS)) {
+          if (!ExprNodeDescUtils.checkPrefixKeysUpstream(cKeys, pKeys, cRS, pRS)) { // childKeys.size() > parentKeys.size()，因此，对于这种情况，只能是childKeys.size() <= parentKeys.size()
             // We cannot push limit; bail out
             return false;
           }
         }
-        // Copy order
+        // Copy order， 分析：对于取limit，对于上游的RS，只要不更改partition cols，是不会更改最终的Groupby结果的
         StringBuilder order;
         StringBuilder orderNull;
         if (pRS.getConf().getOrder().length() > cRS.getConf().getOrder().length()) {
@@ -208,7 +208,7 @@ public class LimitPushdownOptimizer extends Transform {
           orderNull = new StringBuilder(cRS.getConf().getNullOrder());
           order.append(pRS.getConf().getOrder().substring(order.length()));
           orderNull.append(pRS.getConf().getNullOrder().substring(orderNull.length()));
-        } else {
+        } else { // 只有RS GBY RS可能出现这种情况， parents的order列缩小了
           order = new StringBuilder(cRS.getConf().getOrder().substring(
                   0, pRS.getConf().getOrder().length()));
           orderNull = new StringBuilder(cRS.getConf().getNullOrder().substring(

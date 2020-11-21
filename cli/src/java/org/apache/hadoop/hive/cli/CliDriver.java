@@ -383,7 +383,7 @@ public class CliDriver {
     try {
       int lastRet = 0, ret = 0;
 
-      // we can not use "split" function directly as ";" may be quoted
+      // we can not use "split" function directly as ";" may be quoted // 将命令用 ‘;’切分，当然需确保‘;’不是字符串的内容
       List<String> commands = splitSemiColon(line);
 
       String command = "";

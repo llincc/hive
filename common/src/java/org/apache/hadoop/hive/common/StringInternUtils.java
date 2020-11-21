@@ -114,7 +114,7 @@ public class StringInternUtils {
   public static List<String> internStringsInList(List<String> list) {
     if (list != null) {
       try {
-        ListIterator<String> it = list.listIterator();
+        ListIterator<String> it = list.listIterator();// intern所有string并返回
         while (it.hasNext()) {
           it.set(it.next().intern());
         }

@@ -124,10 +124,10 @@ public class ReduceSinkOperator extends TerminalOperator<ReduceSinkDesc>
    * cachedKeys[0] = [col0][col1]
    *
    * with two distict expression, union(tag:key) is attatched for each distinct expression
-   * cachedKeys[0] = [col0][col1][0:dist1]
-   * cachedKeys[1] = [col0][col1][1:dist2]
+   * cachedKeys[0] = [col0][col1][0:dist1] // 第一行最后一列存第一个distinct
+   * cachedKeys[1] = [col0][col1][1:dist2] // 第二行最后一列存第二个distinct
    *
-   * in this case, child GBY evaluates distict values with expression like KEY.col2:0.dist1
+   * in this case, child GBY evaluates distict values with expression like KEY.col2:0.dist1 // --> cachedKeys[0][2]
    * see {@link ExprNodeColumnEvaluator}
    */
   // TODO: we only ever use one row of these at a time. Why do we need to cache multiple?
@@ -172,7 +172,7 @@ public class ReduceSinkOperator extends TerminalOperator<ReduceSinkDesc>
         keyEval[i++] = ExprNodeEvaluatorFactory.get(e);
       }
 
-      numDistributionKeys = conf.getNumDistributionKeys();
+      numDistributionKeys = conf.getNumDistributionKeys(); // groupingSetsPresent ? keyLength + 1 : keyLength,(groupby clusterby distribute by keys)
       distinctColIndices = conf.getDistinctColumnIndices();
       numDistinctExprs = distinctColIndices.size();
 
@@ -182,9 +182,9 @@ public class ReduceSinkOperator extends TerminalOperator<ReduceSinkDesc>
         valueEval[i++] = ExprNodeEvaluatorFactory.get(e);
       }
 
-      partitionEval = new ExprNodeEvaluator[conf.getPartitionCols().size()];
+      partitionEval = new ExprNodeEvaluator[conf.getPartitionCols().size()]; // Cluster by / distribute by / group by
       i = 0;
-      for (ExprNodeDesc e : conf.getPartitionCols()) {
+      for (ExprNodeDesc e : conf.getPartitionCols()) { // 如果partition key属于key cols
         int index = ExprNodeDescUtils.indexOf(e, keys);
         partitionEval[i++] = index < 0 ? ExprNodeEvaluatorFactory.get(e): keyEval[index];
       }
@@ -224,7 +224,7 @@ public class ReduceSinkOperator extends TerminalOperator<ReduceSinkDesc>
 
       if (limit >= 0 && memUsage > 0) {
         reducerHash = conf.isPTFReduceSink() ? new PTFTopNHash() : new TopNHash();
-        reducerHash.initialize(limit, memUsage, conf.isMapGroupBy(), this, conf, hconf);
+        reducerHash.initialize(limit, memUsage, conf.isMapGroupBy(), this, conf, hconf);// isMapGroupBy在LimitPushOptimizer中设置
       }
 
       useUniformHash = conf.getReducerTraits().contains(UNIFORM);
@@ -256,17 +256,17 @@ public class ReduceSinkOperator extends TerminalOperator<ReduceSinkDesc>
    */
   protected static StructObjectInspector initEvaluatorsAndReturnStruct(
       ExprNodeEvaluator[] evals, List<List<Integer>> distinctColIndices,
-      List<String> outputColNames,
-      int length, ObjectInspector rowInspector)
+      List<String> outputColNames, // OutputKeyColNames
+      int length, ObjectInspector rowInspector)// length = numDistributionKeys = groupingSetsPresent ? keyLength + 1 : keyLength, keyLenth = groupbyExprs.size()
       throws HiveException {
-    int inspectorLen = evals.length > length ? length + 1 : evals.length;
-    List<ObjectInspector> sois = new ArrayList<ObjectInspector>(inspectorLen);
+    int inspectorLen = evals.length > length ? length + 1 : evals.length;  // evals.length = keyCols.size()；说明有不属于groupby的keys(即count(distinct a) group by b)，
+    List<ObjectInspector> sois = new ArrayList<ObjectInspector>(inspectorLen); //这里a不在group by 里面，预留一个位置存储distinct的inspector
 
     // keys
-    ObjectInspector[] fieldObjectInspectors = initEvaluators(evals, 0, length, rowInspector);
+    ObjectInspector[] fieldObjectInspectors = initEvaluators(evals, 0, length, rowInspector); // rowInspector = inputObjInspectors[tag]; // tag, which parent from
     sois.addAll(Arrays.asList(fieldObjectInspectors));
 
-    if (outputColNames.size() > length) {
+    if (outputColNames.size() > length) { // outputColNames.size() = outputKeyColNames.size() = evals.length = keyCols.size()
       // union keys
       assert distinctColIndices != null;
       List<ObjectInspector> uois = new ArrayList<ObjectInspector>();
@@ -276,13 +276,13 @@ public class ReduceSinkOperator extends TerminalOperator<ReduceSinkDesc>
         int numExprs = 0;
         for (int i : distinctCols) {
           names.add(HiveConf.getColumnInternalName(numExprs));
-          eois.add(evals[i].initialize(rowInspector));
+          eois.add(evals[i].initialize(rowInspector)); // i 是在keycols的下标
           numExprs++;
         }
-        uois.add(ObjectInspectorFactory.getStandardStructObjectInspector(names, eois));
+        uois.add(ObjectInspectorFactory.getStandardStructObjectInspector(names, eois)); // 每个distinct list形成一个soi
       }
       UnionObjectInspector uoi =
-        ObjectInspectorFactory.getStandardUnionObjectInspector(uois);
+        ObjectInspectorFactory.getStandardUnionObjectInspector(uois); // 多个distinct list的soi组成一个soi  struct<struct<>, struct<>>
       sois.add(uoi);
     }
     return ObjectInspectorFactory.getStandardStructObjectInspector(outputColNames, sois );
@@ -292,7 +292,7 @@ public class ReduceSinkOperator extends TerminalOperator<ReduceSinkDesc>
   @SuppressWarnings("unchecked")
   public void process(Object row, int tag) throws HiveException {
     try {
-      ObjectInspector rowInspector = inputObjInspectors[tag];
+      ObjectInspector rowInspector = inputObjInspectors[tag]; // tag, which parent from
       if (firstRow) {
         firstRow = false;
         // TODO: this is fishy - we init object inspectors based on first tag. We
@@ -304,21 +304,21 @@ public class ReduceSinkOperator extends TerminalOperator<ReduceSinkDesc>
         }
         keyObjectInspector = initEvaluatorsAndReturnStruct(keyEval,
             distinctColIndices,
-            conf.getOutputKeyColumnNames(), numDistributionKeys, rowInspector);
-        valueObjectInspector = initEvaluatorsAndReturnStruct(valueEval,
+            conf.getOutputKeyColumnNames(), numDistributionKeys, rowInspector); // 整个Key形成一个ObjectInspector
+        valueObjectInspector = initEvaluatorsAndReturnStruct(valueEval, //同理
             conf.getOutputValueColumnNames(), rowInspector);
         partitionObjectInspectors = initEvaluators(partitionEval, rowInspector);
         if (bucketEval != null) {
           bucketObjectInspectors = initEvaluators(bucketEval, rowInspector);
         }
-        int numKeys = numDistinctExprs > 0 ? numDistinctExprs : 1;
-        int keyLen = numDistinctExprs > 0 ? numDistributionKeys + 1 : numDistributionKeys;
-        cachedKeys = new Object[numKeys][keyLen];
+        int numKeys = numDistinctExprs > 0 ? numDistinctExprs : 1; // DistinctIndices.size()
+        int keyLen = numDistinctExprs > 0 ? numDistributionKeys + 1 : numDistributionKeys; // numDistributionKeys = groupingSetsPresent ? keyLength + 1 : keyLength, keyLength = groupbyKeys.length
+        cachedKeys = new Object[numKeys][keyLen]; // groupbykeys + distinctKey
         cachedValues = new Object[valueEval.length];
       }
 
-      // Determine distKeyLength (w/o distincts), and then add the first if present.
-      populateCachedDistributionKeys(row);
+      // Determine distKeyLength (w/o distincts), and then add the first if present. // w/o withoutdistincts
+      populateCachedDistributionKeys(row); // 解析row设置cachedKeys的值，第一组keys 并将distinct list的位置设为bull
 
       // replace bucketing columns with hashcode % numBuckets
       int bucketNumber = -1;
@@ -330,11 +330,11 @@ public class ReduceSinkOperator extends TerminalOperator<ReduceSinkDesc>
         cachedKeys[0][buckColIdxInKeyForSdpo] = new Text(String.valueOf(bucketNumber));
       }
 
-      HiveKey firstKey = toHiveKey(cachedKeys[0], tag, null);
+      HiveKey firstKey = toHiveKey(cachedKeys[0], tag, null); // distLength总是为null，意味着distKeyLenth总是等于keyLength
       int distKeyLength = firstKey.getDistKeyLength();
       if (numDistinctExprs > 0) {
         populateCachedDistinctKeys(row, 0);
-        firstKey = toHiveKey(cachedKeys[0], tag, distKeyLength);
+        firstKey = toHiveKey(cachedKeys[0], tag, distKeyLength); // distribution key length
       }
 
       final int hashCode;
@@ -399,27 +399,27 @@ public class ReduceSinkOperator extends TerminalOperator<ReduceSinkDesc>
   }
 
   private void populateCachedDistributionKeys(Object row) throws HiveException {
-    for (int i = 0; i < numDistributionKeys; i++) {
-      cachedKeys[0][i] = keyEval[i].evaluate(row);
+    for (int i = 0; i < numDistributionKeys; i++) { //int keyLen = numDistinctExprs > 0 ? numDistributionKeys + 1 : numDistributionKeys; // keyLen
+      cachedKeys[0][i] = keyEval[i].evaluate(row); // 生产所有的值
     }
-    if (cachedKeys[0].length > numDistributionKeys) {
-      cachedKeys[0][numDistributionKeys] = null;
+    if (cachedKeys[0].length > numDistributionKeys) { //keyLen = numDistinctExprs > 0 ? numDistributionKeys + 1 : numDistributionKeys; 说明有distinct list
+      cachedKeys[0][numDistributionKeys] = null; // 先把distinct list的位置置位null
     }
   }
 
   /**
-   * Populate distinct keys part of cachedKeys for a particular row.
+   * Populate distinct keys part of cachedKeys for a particular row. // Populate 填充
    * @param row the row
    * @param index the cachedKeys index to write to
    */
   private void populateCachedDistinctKeys(Object row, int index) throws HiveException {
     StandardUnion union;
-    cachedKeys[index][numDistributionKeys] = union = new StandardUnion(
-          (byte)index, new Object[distinctColIndices.get(index).size()]);
+    cachedKeys[index][numDistributionKeys] = union = new StandardUnion( // int keyLen = numDistinctExprs > 0 ? numDistributionKeys + 1 : numDistributionKeys; // keyLen
+          (byte)index, new Object[distinctColIndices.get(index).size()]);// ！！ index是指distincetColIndices的元素位置
     Object[] distinctParameters = (Object[]) union.getObject();
     for (int distinctParamI = 0; distinctParamI < distinctParameters.length; distinctParamI++) {
       distinctParameters[distinctParamI] =
-          keyEval[distinctColIndices.get(index).get(distinctParamI)].evaluate(row);
+          keyEval[distinctColIndices.get(index).get(distinctParamI)].evaluate(row);// 第一个DistinctList进行转化
     }
     union.setTag((byte) index);
   }
@@ -473,8 +473,8 @@ public class ReduceSinkOperator extends TerminalOperator<ReduceSinkDesc>
   }
 
   // Serialize the keys and append the tag
-  protected HiveKey toHiveKey(Object obj, int tag, Integer distLength) throws SerDeException {
-    BinaryComparable key = (BinaryComparable)keySerializer.serialize(obj, keyObjectInspector);
+  protected HiveKey toHiveKey(Object obj, int tag, Integer distLength) throws SerDeException {// obj = keyCaches[0]
+    BinaryComparable key = (BinaryComparable)keySerializer.serialize(obj, keyObjectInspector);// 序列化
     int keyLength = key.getLength();
     if (tag == -1 || skipTag) {
       keyWritable.set(key.getBytes(), 0, keyLength);

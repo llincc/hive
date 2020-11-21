@@ -85,7 +85,7 @@ public class IdentityProjectRemover extends Transform {
     // 1. We apply the transformation
     Map<Rule, NodeProcessor> opRules = new LinkedHashMap<Rule, NodeProcessor>();
     opRules.put(new RuleRegExp("R1",
-      "(" + SelectOperator.getOperatorName() + "%)"), new ProjectRemover());
+      "(" + SelectOperator.getOperatorName() + "%)"), new ProjectRemover()); // SEL%
     GraphWalker ogw = new DefaultGraphWalker(new DefaultRuleDispatcher(null, opRules, null));
     ArrayList<Node> topNodes = new ArrayList<Node>();
     topNodes.addAll(pctx.getTopOps().values());
@@ -126,7 +126,7 @@ public class IdentityProjectRemover extends Transform {
         }
       }
 
-      if(sel.isIdentitySelect()) {
+      if(sel.isIdentitySelect()) { // sel的输出与parent的输出一致(长度、类型、顺序)，则移除sel
         parent.removeChildAndAdoptItsChildren(sel);
         LOG.debug("Identity project remover optimization removed : " + sel);
       }

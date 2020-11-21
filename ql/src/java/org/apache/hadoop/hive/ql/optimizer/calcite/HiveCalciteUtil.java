@@ -988,7 +988,7 @@ public class HiveCalciteUtil {
     RexVisitor<Void> visitor = new RexVisitorImpl<Void>(true) {
       @Override
       public Void visitCall(org.apache.calcite.rex.RexCall call) {
-        // non-deterministic functions as well as runtime constants are not materializable.
+        // non-deterministic functions as well as runtime constants are not materializable. // 非确定性函数
         if (!call.getOperator().isDeterministic() || call.getOperator().isDynamicFunction()) {
           throw new Util.FoundOne(call);
         }
